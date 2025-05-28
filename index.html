@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>ライセンス認証</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #f0f0f5;
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  #loading {
+    position: fixed;
+    top:0; left:0; right:0; bottom:0;
+    background: #f0f0f5;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+  }
+  .spinner {
+    border: 10px solid #ddd;
+    border-top: 10px solid #0078d7;
+    border-radius: 50%;
+    width: 120px;
+    height: 120px;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin {
+    0% { transform: rotate(0deg);}
+    100% { transform: rotate(360deg);}
+  }
+  .license-box {
+    background: white;
+    padding: 70px 80px;
+    border-radius: 14px;
+    box-shadow: 0 5px 16px rgba(0,0,0,0.28);
+    width: 520px;
+    text-align: center;
+    font-size: 26px;
+  }
+  #customPwdInput {
+    width: 100%;
+    padding: 20px;
+    font-size: 34px;
+    margin-top: 24px;
+    border: 2px solid #ccc;
+    border-radius: 12px;
+    letter-spacing: 0.6em;
+    font-family: 'Arial', sans-serif;
+    box-sizing: border-box;
+    user-select: none;
+  }
+  button {
+    margin-top: 48px;
+    width: 100%;
+    padding: 22px;
+    font-size: 30px;
+    background-color: #0078d7;
+    color: white;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    user-select: none;
+  }
+  button:hover {
+    background-color: #005ea0;
+  }
+  .message {
+    margin-top: 36px;
+    font-weight: bold;
+    font-size: 24px;
+    height: 30px;
+  }
+  .message.error { color: red; }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+</div>
+
+<div class="license-box" id="licenseBox">
+  <h2>ライセンス認証</h2>
+  <p>パスワードを入力してください</p>
+  <input id="customPwdInput" type="text" autocomplete="off" spellcheck="false" autocorrect="off" autocapitalize="off" />
+  <button id="submitBtn">認証</button>
+  <div id="message" class="message"></div>
+</div>
+
+<script>
+  const loading = document.getElementById('loading');
+  const licenseBox = document.getElementById('licenseBox');
+  const input = document.getElementById('customPwdInput');
+  const btn = document.getElementById('submitBtn');
+  const message = document.getElementById('message');
+
+  let realValue = "";
+  let isAuthenticated = false;
+  const nextURL = "https://shinkamigoto0908.github.io/sample/";
+
+  // ●表示でパスワード入力保持
+  input.addEventListener('keydown', e => {
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      realValue += e.key;
+      updateDisplay();
+    } else if (e.key === "Backspace") {
+      e.preventDefault();
+      realValue = realValue.slice(0, -1);
+      updateDisplay();
+    } else if (e.key === "Tab") {
+      // Tabは通常動作
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      btn.click();
+    } else {
+      e.preventDefault();
+    }
+  });
+
+  function updateDisplay() {
+    if (realValue.length === 0) {
+      input.value = "";
+      return;
+    }
+    input.value = "●".repeat(realValue.length - 1) + realValue.slice(-1);
+  }
+
+  // ネットワーク監視・オフならスピナー表示、UI非表示
+  function onNetworkChange() {
+    if (!navigator.onLine) {
+      loading.style.display = 'flex';
+      licenseBox.style.display = 'none';
+    } else {
+      if (!isAuthenticated) {
+        loading.style.display = 'none';
+        licenseBox.style.display = 'block';
+        input.focus();
+      }
+    }
+  }
+  window.addEventListener('offline', onNetworkChange);
+  window.addEventListener('online', onNetworkChange);
+
+  // 最初のロードは最低0.1秒スピナー表示
+  async function initialLoad() {
+    loading.style.display = 'flex';
+    licenseBox.style.display = 'none';
+    await new Promise(r => setTimeout(r, 100));
+    if (navigator.onLine) {
+      loading.style.display = 'none';
+      licenseBox.style.display = 'block';
+      input.focus();
+    }
+  }
+  window.addEventListener('load', initialLoad);
+
+  // ネット復帰待ちPromise
+  function waitUntilOnline() {
+    if (navigator.onLine) return Promise.resolve();
+    return new Promise(resolve => {
+      const check = () => {
+        if (navigator.onLine) {
+          window.removeEventListener('online', check);
+          resolve();
+        }
+      };
+      window.addEventListener('online', check);
+    });
+  }
+
+  btn.addEventListener('click', async () => {
+    if (realValue.length === 0) {
+      message.textContent = "パスワードを入力してください。";
+      message.className = "message error";
+      return;
+    }
+    if (realValue === "G5618D") {
+      message.textContent = "";
+      isAuthenticated = true;
+
+      licenseBox.style.display = 'none';
+      loading.style.display = 'flex';
+
+      await waitUntilOnline();
+      await new Promise(r => setTimeout(r, 100));
+
+      // 裏iframeで先読み
+      const preloadIframe = document.createElement('iframe');
+      preloadIframe.style.display = 'none';
+      preloadIframe.src = nextURL;
+      document.body.appendChild(preloadIframe);
+
+      preloadIframe.onload = () => {
+        // 読み込み完了したらメイン画面遷移
+        window.location.href = nextURL;
+      };
+    } else {
+      message.textContent = "パスワードが違います。";
+      message.className = "message error";
+    }
+  });
+</script>
+
+</body>
+</html>
